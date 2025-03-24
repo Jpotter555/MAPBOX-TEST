@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PowerApps Mapbox Integration</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- Mapbox CSS -->
+    <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet">
+    
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+        }
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    
+    <!-- Mapbox JavaScript -->
+    <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
+    
+    <script>
+        // Replace with your Mapbox access token
+        mapboxgl.accessToken = 'pk.eyJ1IjoianBvdHRlcjU1IiwiYSI6ImNtOG45dXB6ZDFuaGwycW9nOTU0ejhsaDcifQ.bhqHFkvgEmxCiGG6RckR-Q';
+        
+        // Initialize the map
+        var map = new mapboxgl.Map({
+            container: 'map',
+            style: 'mapbox://styles/mapbox/streets-v12',
+            center: [0, 0],
+            zoom: 2
+        });
+        
+        // Wait for map to load
+        map.on('load', function() {
+            // Let PowerApps know the map is ready
+            window.parent.postMessage({type: 'mapReady'}, '*');
+        });
+        
+        // Function to handle messages from PowerApps
+        window.addEventListener('message', function(event) {
+            var data;
+            
+            try {
+                // Parse the data if it's a string
+                data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+                
+                // Handle different actions
+                switch(data.action) {
+                    case 'setCenter':
+                        map.flyTo({
+                            center: [data.longitude, data.latitude],
+                            zoom: data.zoom || map.getZoom(),
+                            essential: true
+                        });
+                        break;
+                        
+                    case 'addMarker':
+                        // Create popup if title is provided
+                        var popup = data.title ? new mapboxgl.Popup({offset: 25})
+                            .setHTML("<h3>" + data.title + "</h3>") : null;
+                            
+                        // Create marker
+                        var marker = new mapboxgl.Marker({color: data.color || '#F84C4C'})
+                            .setLngLat([data.longitude, data.latitude])
+                            .addTo(map);
+                            
+                        // Add popup if available
+                        if (popup) {
+                            marker.setPopup(popup);
+                        }
+                        
+                        // Respond to PowerApps that marker was added
+                        window.parent.postMessage({
+                            type: 'markerAdded',
+                            id: data.id || Date.now(),
+                            latitude: data.latitude,
+                            longitude: data.longitude
+                        }, '*');
+                        break;
+                        
+                    case 'getLocation':
+                        // Send current map center back to PowerApps
+                        var center = map.getCenter();
+                        window.parent.postMessage({
+                            type: 'mapLocation',
+                            latitude: center.lat,
+                            longitude: center.lng,
+                            zoom: map.getZoom()
+                        }, '*');
+                        break;
+                        
+                    case 'changeStyle':
+                        // Change map style
+                        map.setStyle('mapbox://styles/mapbox/' + (data.style || 'streets-v12'));
+                        break;
+                }
+            } catch (error) {
+                console.error('Error processing message:', error);
+            }
+        });
+    </script>
+</body>
+</html>
